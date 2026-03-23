@@ -1,16 +1,16 @@
 """
 Agents Knowledge Base — Agent de support client
-Outils : recherche KB + escalade vers humain
+Approche : chaîne custom avec détection d'escalade
 """
 
 import os
+import json
 import chromadb
 from datetime import datetime
+from pathlib import Path
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_groq import ChatGroq
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from dotenv import load_dotenv
 
@@ -21,7 +21,7 @@ load_dotenv()
 GROQ_MODEL         = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./data/chroma")
 EMBEDDING_MODEL    = "all-MiniLM-L6-v2"
-TOP_K              = int(os.getenv("TOP_K", "6"))
+TOP_K              = int(os.getenv("TOP_K", "3"))
 ESCALATION_LOG     = os.getenv("ESCALATION_LOG", "./data/escalations.json")
 
 # ── Vector store ──────────────────────────────────────────────────────────────
@@ -35,151 +35,101 @@ def get_vectorstore() -> Chroma:
         embedding_function=embeddings
     )
 
-# ── Tools ─────────────────────────────────────────────────────────────────────
+# ── Escalation ────────────────────────────────────────────────────────────────
 
-def make_tools(vectorstore: Chroma):
+def create_escalation_ticket(reason: str) -> str:
+    ticket = {
+        "timestamp": datetime.now().isoformat(),
+        "reason": reason,
+        "status": "pending"
+    }
+    log_path = Path(ESCALATION_LOG)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    tickets = []
+    if log_path.exists():
+        with open(log_path) as f:
+            tickets = json.load(f)
+    tickets.append(ticket)
+    with open(log_path, "w") as f:
+        json.dump(tickets, f, indent=2)
+    return f"ESC-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-    @tool
-    def search_knowledge_base(query: str) -> str:
-        """
-        Search the knowledge base to answer customer questions about
-        products, pricing, account management, technical issues,
-        billing, and company policies.
-        Use this tool first for any customer question.
-        """
-        docs = vectorstore.similarity_search(query, k=TOP_K)
-        if not docs:
-            return "No relevant information found in the knowledge base."
+# ── Agent ─────────────────────────────────────────────────────────────────────
 
-        results = []
-        for i, doc in enumerate(docs, 1):
-            source = doc.metadata.get("source", "Unknown")
-            results.append(f"[Source: {source}]\n{doc.page_content}")
+ESCALATION_KEYWORDS = [
+    "human", "agent", "person", "representative", "supervisor",
+    "humain", "personne", "représentant", "superviseur", "parler à",
+    "urgent", "angry", "frustrated", "frustrated", "complaint", "plainte"
+]
 
-        return "\n\n---\n\n".join(results)
+def should_escalate(question: str) -> bool:
+    q = question.lower()
+    return any(kw in q for kw in ESCALATION_KEYWORDS)
 
-    @tool
-    def escalate_to_human(
-        reason: str,
-        customer_message: str,
-        urgency: str = "normal"
-    ) -> str:
-        """
-        Escalate the conversation to a human support agent when:
-        - The knowledge base doesn't contain the answer
-        - The issue is complex or sensitive
-        - The customer is frustrated or angry
-        - The question involves account security or billing disputes
-        - The customer explicitly requests a human agent
+def search_kb(vectorstore: Chroma, query: str) -> str:
+    docs = vectorstore.similarity_search(query, k=TOP_K)
+    if not docs:
+        return ""
+    return "\n\n".join([doc.page_content for doc in docs])
 
-        Args:
-            reason: Why you are escalating (be specific)
-            customer_message: The customer's original message
-            urgency: 'low', 'normal', or 'high'
-        """
-        import json
-        from pathlib import Path
-
-        ticket = {
-            "timestamp": datetime.now().isoformat(),
-            "urgency": urgency,
-            "reason": reason,
-            "customer_message": customer_message,
-            "status": "pending"
-        }
-
-        # Sauvegarde le ticket
-        log_path = Path(ESCALATION_LOG)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-
-        tickets = []
-        if log_path.exists():
-            with open(log_path) as f:
-                tickets = json.load(f)
-        tickets.append(ticket)
-        with open(log_path, "w") as f:
-            json.dump(tickets, f, indent=2)
-
-        urgency_labels = {
-            "low": "dans les 24 heures",
-            "normal": "dans les 4 heures",
-            "high": "dans les 30 minutes"
-        }
-        delay = urgency_labels.get(urgency, "dans les 4 heures")
-
-        return (
-            f"✅ Ticket d'escalade créé avec succès.\n"
-            f"Un agent humain vous contactera {delay}.\n"
-            f"Référence : ESC-{datetime.now().strftime('%Y%m%d%H%M%S')}\n"
-            f"Urgence : {urgency.upper()}"
-        )
-
-    return [search_knowledge_base, escalate_to_human]
-
-
-# ── Prompt ────────────────────────────────────────────────────────────────────
-
-SYSTEM_PROMPT = """Tu es Alex, un agent de support client professionnel et bienveillant pour TechPro Solutions.
-
-Tu as accès à deux outils :
-1. **search_knowledge_base** : pour chercher des réponses dans notre documentation
-2. **escalate_to_human** : pour escalader vers un agent humain quand nécessaire
-
-## Processus de décision :
-
-1. Pour toute question client, commence TOUJOURS par chercher dans la knowledge base
-2. Si tu trouves une réponse claire et complète → réponds directement
-3. Si la réponse est partielle → réponds avec ce que tu as et propose d'escalader
-4. Si tu ne trouves RIEN de pertinent → escalade vers un humain
-5. Escalade TOUJOURS si :
-   - La question concerne un litige de facturation
-   - Le client exprime de la frustration ou colère
-   - La question implique la sécurité du compte
-   - Le client demande explicitement un humain
-
-## Style de communication :
-- Poli, professionnel et empathique
-- Réponses concises et structurées
-- Toujours en français sauf si le client écrit en anglais
-- Signe toujours tes messages avec "— Alex, Support TechPro"
-
-Date et heure actuelle : {current_datetime}
-"""
-
-def build_agent(vectorstore: Chroma) -> AgentExecutor:
-    """Construit l'agent LangChain."""
+def build_agent(vectorstore: Chroma):
     llm = ChatGroq(model=GROQ_MODEL, temperature=0)
-    tools = make_tools(vectorstore)
+    return {"vectorstore": vectorstore, "llm": llm}
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", SYSTEM_PROMPT),
-        MessagesPlaceholder(variable_name="chat_history"),
-        ("human", "{input}"),
-        MessagesPlaceholder(variable_name="agent_scratchpad"),
-    ])
+def ask_agent(agent: dict, question: str, history: list = None) -> dict:
+    vectorstore = agent["vectorstore"]
+    llm = agent["llm"]
 
-    agent = create_tool_calling_agent(llm, tools, prompt)
+    # Détection d'escalade directe
+    if should_escalate(question):
+        ref = create_escalation_ticket(f"Customer requested: {question}")
+        return {
+            "question": question,
+            "answer": (
+                f"Je comprends votre urgence. 🚨\n\n"
+                f"J'ai créé un ticket d'escalade pour vous mettre en contact avec un agent humain.\n\n"
+                f"**Référence :** `{ref}`\n"
+                f"**Délai de réponse :** Dans les 4 heures\n\n"
+                f"En attendant, vous pouvez aussi nous contacter directement :\n"
+                f"- 📧 support@techpro-solutions.com\n"
+                f"- 📞 1-800-TECHPRO\n\n"
+                f"— Alex, Support TechPro"
+            ),
+            "escalated": True
+        }
 
-    return AgentExecutor(
-        agent=agent,
-        tools=tools,
-        verbose=True,
-        max_iterations=5,
-        handle_parsing_errors=True
-    )
+    # Recherche dans la KB
+    context = search_kb(vectorstore, question)
 
-def ask_agent(agent: AgentExecutor, question: str, history: list = None) -> dict:
-    """Pose une question à l'agent."""
-    if history is None:
-        history = []
+    if not context:
+        ref = create_escalation_ticket(f"No KB answer found for: {question}")
+        return {
+            "question": question,
+            "answer": (
+                f"Je n'ai pas trouvé de réponse dans notre base de connaissances. 😕\n\n"
+                f"J'ai créé un ticket pour qu'un agent humain vous réponde.\n\n"
+                f"**Référence :** `{ref}`\n\n"
+                f"— Alex, Support TechPro"
+            ),
+            "escalated": True
+        }
 
-    result = agent.invoke({
-        "input": question,
-        "chat_history": history,
-        "current_datetime": datetime.now().strftime("%Y-%m-%d %H:%M")
-    })
+    # Génération de réponse
+    prompt = f"""You are Alex, a customer support agent for TechPro Solutions.
+Answer the customer question using ONLY the context below.
+Be concise, professional and helpful. Answer in the same language as the question.
+Sign with "— Alex, TechPro Support"
 
+Context:
+{context}
+
+Customer question: {question}
+
+Answer:"""
+
+    response = llm.invoke(prompt)
     return {
         "question": question,
-        "answer": result["output"],
+        "answer": response.content,
+        "escalated": False
     }

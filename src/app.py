@@ -75,7 +75,7 @@ with st.sidebar:
             st.warning(f"🚨 {len(pending)} ticket(s) en attente")
             with st.expander("Voir les tickets"):
                 for t in pending[-3:]:
-                    st.markdown(f"**{t['timestamp'][:16]}** — {t['urgency'].upper()}")
+                    st.markdown(f"**{t['timestamp'][:16]}**")
                     st.markdown(f"_{t['reason']}_")
                     st.divider()
 

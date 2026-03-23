@@ -1,3 +1,8 @@
 .venv-kb/
 data/chroma/
 .env
+.venv-agents/
+data/
+src/__pycache__/
+**/__pycache__/
+*.pyc

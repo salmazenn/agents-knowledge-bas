@@ -6,3 +6,4 @@ data/
 src/__pycache__/
 **/__pycache__/
 *.pyc
+!docs/support_client_faq.pdf

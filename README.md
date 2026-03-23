@@ -41,7 +41,7 @@ tags:
 
 ## 🧠 How It Works
 
-\`\`\`
+```
 Customer question
        │
        ▼
@@ -52,7 +52,7 @@ Escalation keywords detected?
         Found answer?
           YES → Answer customer
           NO  → Create ticket → Human agent
-\`\`\`
+```
 
 **Escalation triggers :**
 - Customer explicitly requests a human agent
@@ -80,33 +80,33 @@ Escalation keywords detected?
 
 ### 1. Clone the repository
 
-\`\`\`bash
+```bash
 git clone https://github.com/salmazenn/agents-knowledge-bas.git
 cd agents-knowledge-bas
-\`\`\`
+```
 
 ### 2. Create a virtual environment
 
-\`\`\`bash
+```bash
 python3 -m venv .venv-agents
 source .venv-agents/bin/activate
-\`\`\`
+```
 
 ### 3. Install dependencies
 
-\`\`\`bash
+```bash
 pip install -r requirements.txt
-\`\`\`
+```
 
 ### 4. Set up environment variables
 
-\`\`\`bash
+```bash
 cp env.example .env
-\`\`\`
+```
 
 Edit \`.env\`:
 
-\`\`\`env
+```env
 # Required
 GROQ_API_KEY=your_groq_api_key_here
 
@@ -118,25 +118,25 @@ CHUNK_SIZE=1000
 CHUNK_OVERLAP=100
 TOP_K=3
 ESCALATION_LOG=./data/escalations.json
-\`\`\`
+```
 
 ### 5. Add your documents
 
-\`\`\`bash
+```bash
 cp your-faq.pdf docs/
-\`\`\`
+```
 
 ### 6. Index your documents
 
-\`\`\`bash
+```bash
 python src/ingest.py
-\`\`\`
+```
 
 ### 7. Launch the app
 
-\`\`\`bash
+```bash
 streamlit run src/app.py
-\`\`\`
+```
 
 Open **http://localhost:8501** 🎉
 
@@ -159,7 +159,7 @@ Open **http://localhost:8501** 🎉
 
 ## 📁 Project Structure
 
-\`\`\`
+```
 agents-knowledge-base/
 ├── src/
 │   ├── ingest.py       # Index PDFs into ChromaDB
@@ -174,7 +174,7 @@ agents-knowledge-base/
 ├── requirements.txt
 ├── Dockerfile
 └── README.md
-\`\`\`
+```
 
 ---
 

@@ -104,7 +104,7 @@ pip install -r requirements.txt
 cp env.example .env
 ```
 
-Edit \`.env\`:
+Edit `.env`:
 
 ```env
 # Required
@@ -146,14 +146,14 @@ Open **http://localhost:8501** 🎉
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| \`GROQ_API_KEY\` | — | **Required.** Your Groq API key |
-| \`GROQ_MODEL\` | \`llama-3.3-70b-versatile\` | Groq model |
-| \`CHROMA_PERSIST_DIR\` | \`./data/chroma\` | ChromaDB storage path |
-| \`DOCS_DIR\` | \`./docs\` | Folder with your PDFs |
-| \`CHUNK_SIZE\` | \`1000\` | Chunk size in tokens |
-| \`CHUNK_OVERLAP\` | \`100\` | Overlap between chunks |
-| \`TOP_K\` | \`3\` | Number of chunks retrieved |
-| \`ESCALATION_LOG\` | \`./data/escalations.json\` | Escalation tickets log |
+| `GROQ_API_KEY` | — | **Required.** Your Groq API key |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model |
+| `CHROMA_PERSIST_DIR` | `./data/chroma` | ChromaDB storage path |
+| `DOCS_DIR` | `./docs` | Folder with your PDFs |
+| `CHUNK_SIZE` | `1000` | Chunk size in tokens |
+| `CHUNK_OVERLAP` | `100` | Overlap between chunks |
+| `TOP_K` | `3` | Number of chunks retrieved |
+| `ESCALATION_LOG` | `./data/escalations.json` | Escalation tickets log |
 
 ---
 

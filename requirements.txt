@@ -47,7 +47,7 @@ langchain==0.2.0
 langchain-chroma==1.1.0
 langchain-classic==1.0.3
 langchain-community==0.4.1
-langchain-core==1.2.20
+langchain-core==0.2.20
 langchain-groq==1.1.2
 langchain-huggingface==1.2.1
 langchain-text-splitters==1.1.1
